@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { goto, invalidateAll } from '$app/navigation';
 	import SearchBar from '$lib/components/ui/SearchBar.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import { toast } from '$lib/stores/toast';
@@ -13,6 +14,8 @@
 	let { data, children }: Props = $props();
 	let userMenuOpen = $state(false);
 	let loggingOut = $state(false);
+	let dropdownRef = $state<HTMLDivElement | null>(null);
+	let triggerRef = $state<HTMLButtonElement | null>(null);
 
 	function toggleUserMenu() {
 		userMenuOpen = !userMenuOpen;
@@ -22,20 +25,59 @@
 		userMenuOpen = false;
 	}
 
+	// Handle clicks outside the dropdown to close it
+	function handleWindowClick(event: MouseEvent) {
+		// Only close if clicking outside the dropdown and trigger button
+		const target = event.target as Node;
+		if (
+			userMenuOpen &&
+			dropdownRef &&
+			triggerRef &&
+			!dropdownRef.contains(target) &&
+			!triggerRef.contains(target)
+		) {
+			userMenuOpen = false;
+		}
+	}
+
+	// Handle navigation link clicks - close menu and let SvelteKit handle navigation
+	function handleNavClick() {
+		closeUserMenu();
+		// Don't prevent default - let SvelteKit's client-side routing work
+	}
+
+	// Handle logout using fetch API for SPA-friendly behavior
 	async function handleLogout() {
 		loggingOut = true;
 		closeUserMenu();
 		toast.info('Logging out...');
-		
-		const form = document.createElement('form');
-		form.method = 'POST';
-		form.action = '/auth/logout';
-		document.body.appendChild(form);
-		form.submit();
+
+		try {
+			const response = await fetch('/auth/logout', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (response.ok || response.redirected) {
+				toast.success('You have been logged out');
+				// Invalidate all data and navigate to home
+				await invalidateAll();
+				await goto('/', { replaceState: true });
+			} else {
+				toast.error('Failed to logout. Please try again.');
+			}
+		} catch (error) {
+			toast.error('An error occurred during logout');
+		} finally {
+			loggingOut = false;
+		}
 	}
 </script>
 
-<svelte:window onclick={() => userMenuOpen = false} />
+<!-- Use specific click handler instead of catching all window clicks -->
+<svelte:window onclick={handleWindowClick} />
 
 <div class="app">
 	<Toast />
@@ -63,9 +105,12 @@
 					<!-- User Menu -->
 					<div class="user-menu-container">
 						<button 
+							bind:this={triggerRef}
 							class="user-menu-trigger" 
 							onclick={(e) => { e.stopPropagation(); toggleUserMenu(); }}
 							aria-label="User menu"
+							aria-expanded={userMenuOpen}
+							aria-haspopup="true"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -74,7 +119,11 @@
 						</button>
 						
 						{#if userMenuOpen}
-							<div class="user-dropdown" onclick={(e) => e.stopPropagation()}>
+							<div 
+								bind:this={dropdownRef}
+								class="user-dropdown" 
+								role="menu"
+							>
 								<div class="user-info">
 									<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 										<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -86,14 +135,14 @@
 								<div class="dropdown-divider"></div>
 								
 								{#if data.user}
-									<a href="/library" class="dropdown-item" onclick={closeUserMenu}>
+									<a href="/library" class="dropdown-item" role="menuitem" onclick={handleNavClick}>
 										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
 											<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
 										</svg>
 										Library
 									</a>
-									<a href="/history" class="dropdown-item" onclick={closeUserMenu}>
+									<a href="/history" class="dropdown-item" role="menuitem" onclick={handleNavClick}>
 										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<circle cx="12" cy="12" r="10"/>
 											<polyline points="12 6 12 12 16 14"/>
@@ -101,7 +150,7 @@
 										History
 									</a>
 									{#if data.user.role === 'admin'}
-										<a href="/admin" class="dropdown-item" onclick={closeUserMenu}>
+										<a href="/admin" class="dropdown-item" role="menuitem" onclick={handleNavClick}>
 											<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
 												<circle cx="12" cy="12" r="3"/>
@@ -110,21 +159,26 @@
 										</a>
 									{/if}
 									<div class="dropdown-divider"></div>
-<button class="dropdown-item logout-item" onclick={handleLogout} disabled={loggingOut}>
-								{#if loggingOut}
-									<span class="logout-spinner"></span>
-									Logging out...
+									<button 
+										class="dropdown-item logout-item" 
+										role="menuitem"
+										onclick={handleLogout} 
+										disabled={loggingOut}
+									>
+										{#if loggingOut}
+											<span class="logout-spinner"></span>
+											Logging out...
+										{:else}
+											<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+												<polyline points="16 17 21 12 16 7"/>
+												<line x1="21" y1="12" x2="9" y2="12"/>
+											</svg>
+											Logout
+										{/if}
+									</button>
 								{:else}
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-										<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-										<polyline points="16 17 21 12 16 7"/>
-										<line x1="21" y1="12" x2="9" y2="12"/>
-									</svg>
-									Logout
-								{/if}
-							</button>
-								{:else}
-									<a href="/login" class="dropdown-item" onclick={closeUserMenu}>
+									<a href="/login" class="dropdown-item" role="menuitem" onclick={handleNavClick}>
 										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
 											<polyline points="10 17 15 12 10 7"/>
@@ -132,7 +186,7 @@
 										</svg>
 										Sign In
 									</a>
-									<a href="/register" class="dropdown-item register-item" onclick={closeUserMenu}>
+									<a href="/register" class="dropdown-item register-item" role="menuitem" onclick={handleNavClick}>
 										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
 											<circle cx="8.5" cy="7" r="4"/>
@@ -300,6 +354,7 @@
 		color: var(--color-text-secondary);
 		font-size: 0.875rem;
 		text-align: left;
+		text-decoration: none;
 		transition: all var(--transition-fast);
 		cursor: pointer;
 		background: none;
@@ -315,7 +370,7 @@
 		flex-shrink: 0;
 	}
 
-.logout-item:hover {
+	.logout-item:hover {
 		background: rgba(239, 68, 68, 0.1);
 		color: #ef4444;
 	}
