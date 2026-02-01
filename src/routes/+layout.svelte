@@ -1,6 +1,8 @@
 <script lang="ts">
 	import '../app.css';
 	import SearchBar from '$lib/components/ui/SearchBar.svelte';
+	import Toast from '$lib/components/ui/Toast.svelte';
+	import { toast } from '$lib/stores/toast';
 	import type { LayoutData } from './$types';
 
 	interface Props {
@@ -10,6 +12,7 @@
 
 	let { data, children }: Props = $props();
 	let userMenuOpen = $state(false);
+	let loggingOut = $state(false);
 
 	function toggleUserMenu() {
 		userMenuOpen = !userMenuOpen;
@@ -20,6 +23,10 @@
 	}
 
 	async function handleLogout() {
+		loggingOut = true;
+		closeUserMenu();
+		toast.info('Logging out...');
+		
 		const form = document.createElement('form');
 		form.method = 'POST';
 		form.action = '/auth/logout';
@@ -31,6 +38,7 @@
 <svelte:window onclick={() => userMenuOpen = false} />
 
 <div class="app">
+	<Toast />
 	<header class="header">
 		<div class="container">
 			<div class="header-content">
@@ -102,14 +110,19 @@
 										</a>
 									{/if}
 									<div class="dropdown-divider"></div>
-									<button class="dropdown-item logout-item" onclick={handleLogout}>
-										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-											<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-											<polyline points="16 17 21 12 16 7"/>
-											<line x1="21" y1="12" x2="9" y2="12"/>
-										</svg>
-										Logout
-									</button>
+<button class="dropdown-item logout-item" onclick={handleLogout} disabled={loggingOut}>
+								{#if loggingOut}
+									<span class="logout-spinner"></span>
+									Logging out...
+								{:else}
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+										<polyline points="16 17 21 12 16 7"/>
+										<line x1="21" y1="12" x2="9" y2="12"/>
+									</svg>
+									Logout
+								{/if}
+							</button>
 								{:else}
 									<a href="/login" class="dropdown-item" onclick={closeUserMenu}>
 										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -302,9 +315,29 @@
 		flex-shrink: 0;
 	}
 
-	.logout-item:hover {
+.logout-item:hover {
 		background: rgba(239, 68, 68, 0.1);
 		color: #ef4444;
+	}
+
+	.logout-item:disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
+	}
+
+	.logout-spinner {
+		width: 14px;
+		height: 14px;
+		border: 2px solid rgba(239, 68, 68, 0.3);
+		border-top-color: #ef4444;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.register-item {

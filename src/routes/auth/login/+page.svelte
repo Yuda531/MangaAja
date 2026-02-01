@@ -1,10 +1,17 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { toast } from '$lib/stores/toast';
 	import type { ActionData } from './$types';
 
 	let { form }: { form: ActionData } = $props();
 
 	let loading = $state(false);
+
+	$effect(() => {
+		if (form?.error) {
+			toast.error(form.error);
+		}
+	});
 </script>
 
 <svelte:head>
@@ -28,8 +35,11 @@
 			class="auth-form"
 			use:enhance={() => {
 				loading = true;
-				return async ({ update }) => {
+				return async ({ result, update }) => {
 					loading = false;
+					if (result.type === 'redirect') {
+						toast.success('Welcome back!');
+					}
 					await update();
 				};
 			}}
@@ -43,6 +53,7 @@
 					required 
 					autocomplete="email"
 					placeholder="your@email.com"
+					disabled={loading}
 				/>
 			</div>
 
@@ -55,12 +66,14 @@
 					required
 					autocomplete="current-password"
 					placeholder="Your password"
+					disabled={loading}
 				/>
 			</div>
 
 			<button type="submit" class="submit-btn" disabled={loading}>
 				{#if loading}
-					Signing in...
+					<span class="spinner"></span>
+					<span>Signing in...</span>
 				{:else}
 					Sign in
 				{/if}
@@ -160,6 +173,11 @@
 		color: var(--color-text-muted);
 	}
 
+	.form-group input:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
 	.submit-btn {
 		padding: var(--spacing-md);
 		background-color: var(--color-primary);
@@ -167,6 +185,10 @@
 		font-weight: 600;
 		border-radius: var(--radius-md);
 		transition: background-color var(--transition-fast);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--spacing-sm);
 	}
 
 	.submit-btn:hover:not(:disabled) {
@@ -176,6 +198,21 @@
 	.submit-btn:disabled {
 		opacity: 0.7;
 		cursor: not-allowed;
+	}
+
+	.spinner {
+		width: 18px;
+		height: 18px;
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		border-top-color: white;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.auth-footer {

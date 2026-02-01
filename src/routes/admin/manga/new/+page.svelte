@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
+	import { toast } from '$lib/stores/toast';
 
 	let { data } = $props<{ data: PageData }>();
 
@@ -41,6 +42,7 @@
 		event.preventDefault();
 		if (!title.trim()) {
 			error = 'Title is required';
+			toast.error('Title is required');
 			return;
 		}
 
@@ -65,13 +67,16 @@
 
 			if (response.ok) {
 				const result = await response.json();
+				toast.success(`"${title}" has been created successfully!`);
 				goto(`/admin/manga/${result.slug}/chapters`);
 			} else {
 				const err = await response.json();
 				error = err.message || 'Failed to create manga';
+				toast.error(error ?? 'Failed to create manga');
 			}
 		} catch (e) {
 			error = 'An error occurred';
+			toast.error('An error occurred while creating the manga');
 		} finally {
 			submitting = false;
 		}
@@ -107,6 +112,7 @@
 						bind:value={title}
 						placeholder="Enter manga title"
 						required
+						disabled={submitting}
 					/>
 				</div>
 
@@ -117,12 +123,13 @@
 						bind:value={description}
 						placeholder="Enter manga description"
 						rows="5"
+						disabled={submitting}
 					></textarea>
 				</div>
 
 				<div class="form-group">
 					<label for="status">Status</label>
-					<select id="status" bind:value={status}>
+					<select id="status" bind:value={status} disabled={submitting}>
 						<option value="ongoing">Ongoing</option>
 						<option value="completed">Completed</option>
 						<option value="hiatus">Hiatus</option>
@@ -138,6 +145,7 @@
 									type="checkbox"
 									checked={selectedGenres.includes(genre.id)}
 									onchange={() => toggleGenre(genre.id)}
+									disabled={submitting}
 								/>
 								<span>{genre.name}</span>
 							</label>
@@ -167,6 +175,7 @@
 							accept="image/*"
 							onchange={handleCoverChange}
 							class="cover-input"
+							disabled={submitting}
 						/>
 					</div>
 				</div>
@@ -177,7 +186,8 @@
 			<a href="/admin/manga" class="btn-secondary">Cancel</a>
 			<button type="submit" class="btn-primary" disabled={submitting}>
 				{#if submitting}
-					Creating...
+					<span class="spinner"></span>
+					<span>Creating...</span>
 				{:else}
 					Create Manga
 				{/if}
@@ -274,6 +284,13 @@
 		border-color: #6366f1;
 	}
 
+	input[type="text"]:disabled,
+	textarea:disabled,
+	select:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
 	textarea {
 		resize: vertical;
 	}
@@ -361,6 +378,10 @@
 		font-weight: 500;
 		cursor: pointer;
 		transition: background 0.2s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
 	}
 
 	.btn-primary:hover:not(:disabled) {
@@ -370,6 +391,21 @@
 	.btn-primary:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.spinner {
+		width: 16px;
+		height: 16px;
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		border-top-color: white;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.btn-secondary {

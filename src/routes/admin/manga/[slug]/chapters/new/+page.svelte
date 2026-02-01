@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
+	import { toast } from '$lib/stores/toast';
 
 	let { data } = $props<{ data: PageData }>();
 
@@ -34,6 +35,7 @@
 		event.preventDefault();
 		if (pageFiles.length === 0) {
 			error = 'Please add at least one page';
+			toast.error('Please add at least one page');
 			return;
 		}
 
@@ -59,13 +61,16 @@
 			});
 
 			if (response.ok) {
+				toast.success(`Chapter ${chapterNumber} has been created successfully!`);
 				goto(`/admin/manga/${data.manga.slug}/chapters`);
 			} else {
 				const err = await response.json();
 				error = err.message || 'Failed to create chapter';
+				toast.error(error ?? 'Failed to create chapter');
 			}
 		} catch (e) {
 			error = 'An error occurred';
+			toast.error('An error occurred while creating the chapter');
 		} finally {
 			submitting = false;
 		}
@@ -103,6 +108,7 @@
 					bind:value={chapterNumber}
 					min="1"
 					required
+					disabled={submitting}
 				/>
 			</div>
 			<div class="form-group flex-1">
@@ -112,19 +118,21 @@
 					id="title"
 					bind:value={title}
 					placeholder="e.g. The Beginning"
+					disabled={submitting}
 				/>
 			</div>
 		</div>
 
 		<div class="form-group">
 			<label>Pages *</label>
-			<div class="upload-area">
+			<div class="upload-area" class:disabled={submitting}>
 				<input
 					type="file"
 					accept="image/*"
 					multiple
 					onchange={handleFilesChange}
 					class="file-input"
+					disabled={submitting}
 				/>
 				<div class="upload-content">
 					<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -146,7 +154,7 @@
 						<div class="page-item">
 							<span class="page-number">{index + 1}</span>
 							<img src={preview} alt="Page {index + 1}" />
-							<button type="button" class="remove-btn" onclick={() => removeFile(index)}>
+							<button type="button" class="remove-btn" onclick={() => removeFile(index)} disabled={submitting}>
 								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 									<line x1="18" y1="6" x2="6" y2="18"/>
 									<line x1="6" y1="6" x2="18" y2="18"/>
@@ -162,9 +170,10 @@
 			<a href="/admin/manga/{data.manga.slug}/chapters" class="btn-secondary">Cancel</a>
 			<button type="submit" class="btn-primary" disabled={submitting}>
 				{#if submitting}
-					Uploading...
+					<span class="spinner"></span>
+					<span>Uploading...</span>
 				{:else}
-					Create Chapter
+					Upload Chapter
 				{/if}
 			</button>
 		</div>
@@ -266,6 +275,12 @@
 		border-color: #6366f1;
 	}
 
+	input[type="text"]:disabled,
+	input[type="number"]:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
 	input[type="number"] {
 		width: 120px;
 	}
@@ -280,8 +295,13 @@
 		transition: border-color 0.2s;
 	}
 
-	.upload-area:hover {
+	.upload-area:hover:not(.disabled) {
 		border-color: #6366f1;
+	}
+
+	.upload-area.disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	.file-input {
@@ -289,6 +309,10 @@
 		inset: 0;
 		opacity: 0;
 		cursor: pointer;
+	}
+
+	.file-input:disabled {
+		cursor: not-allowed;
 	}
 
 	.upload-content {
@@ -370,7 +394,12 @@
 		transition: opacity 0.2s;
 	}
 
-	.page-item:hover .remove-btn {
+	.remove-btn:disabled {
+		opacity: 0 !important;
+		cursor: not-allowed;
+	}
+
+	.page-item:hover .remove-btn:not(:disabled) {
 		opacity: 1;
 	}
 
@@ -392,6 +421,10 @@
 		font-weight: 500;
 		cursor: pointer;
 		transition: background 0.2s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
 	}
 
 	.btn-primary:hover:not(:disabled) {
@@ -401,6 +434,21 @@
 	.btn-primary:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.spinner {
+		width: 16px;
+		height: 16px;
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		border-top-color: white;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.btn-secondary {
