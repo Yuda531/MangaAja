@@ -24,20 +24,6 @@
 
 	<main class="main">
 		<div class="container">
-			<!-- User Info -->
-			<div class="user-info">
-				<div class="avatar">
-					{data.user.username.charAt(0).toUpperCase()}
-				</div>
-				<div class="user-details">
-					<p class="username">{data.user.username}</p>
-					<p class="email">{data.user.email}</p>
-				</div>
-				<form method="POST" action="/auth/logout">
-					<button type="submit" class="logout-btn">Logout</button>
-				</form>
-			</div>
-
 			<!-- Tabs -->
 			<nav class="tabs">
 				<a href="/library" class="tab active">Bookmarks</a>

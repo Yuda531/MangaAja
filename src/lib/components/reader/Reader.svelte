@@ -13,13 +13,16 @@
 		manga: Manga;
 		prevChapter: Chapter | null;
 		nextChapter: Chapter | null;
+		isLoggedIn?: boolean;
 	}
 
-	let { chapter, manga, prevChapter, nextChapter }: Props = $props();
+	let { chapter, manga, prevChapter, nextChapter, isLoggedIn = false }: Props = $props();
 
 	let showSettings = $state(false);
 	let showControls = $state(true);
 	let controlsTimeout: ReturnType<typeof setTimeout>;
+	let progressSaveTimeout: ReturnType<typeof setTimeout>;
+	let lastSavedPage = $state(0);
 
 	// Initialize chapter state
 	$effect(() => {
@@ -30,6 +33,34 @@
 		});
 		currentPage.set(1);
 	});
+
+	// Save reading progress when page changes (debounced)
+	$effect(() => {
+		const page = $currentPage;
+		if (isLoggedIn && page > 0 && page !== lastSavedPage) {
+			clearTimeout(progressSaveTimeout);
+			progressSaveTimeout = setTimeout(() => {
+				saveProgress(page);
+			}, 2000); // Save after 2 seconds of no page changes
+		}
+	});
+
+	async function saveProgress(pageNumber: number) {
+		try {
+			await fetch('/api/progress', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					mangaId: manga.id,
+					chapterId: chapter.id,
+					pageNumber
+				})
+			});
+			lastSavedPage = pageNumber;
+		} catch (err) {
+			console.error('Failed to save progress:', err);
+		}
+	}
 
 	// Initialize settings from localStorage
 	onMount(() => {
@@ -72,6 +103,12 @@
 		return () => {
 			window.removeEventListener('keydown', handleKeydown);
 			clearTimeout(controlsTimeout);
+			clearTimeout(progressSaveTimeout);
+			
+			// Save progress when leaving the page
+			if (isLoggedIn && $currentPage > 0 && $currentPage !== lastSavedPage) {
+				saveProgress($currentPage);
+			}
 		};
 	});
 

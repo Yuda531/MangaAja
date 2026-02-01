@@ -79,6 +79,24 @@ export interface ReadingHistory {
 	readAt: Date;
 }
 
+export interface ReadingHistoryWithDetails {
+	id: string;
+	mangaId: string;
+	chapterId: string;
+	readAt: Date;
+	manga: {
+		id: string;
+		title: string;
+		slug: string;
+		coverUrl: string | null;
+	};
+	chapter: {
+		id: string;
+		chapterNumber: number;
+		title: string | null;
+	};
+}
+
 // API types
 export interface PaginatedResponse<T> {
 	data: T[];

@@ -187,29 +187,91 @@ export async function updateReadingProgress(
 }
 
 /**
- * Add to reading history
+ * Add to reading history (upsert - updates if same manga+chapter exists)
  */
 export async function addToHistory(userId: string, mangaId: string, chapterId: string): Promise<ReadingHistory> {
-	const result = await db
-		.insert(readingHistory)
-		.values({ userId, mangaId, chapterId })
-		.returning();
+	// Check if entry already exists for this user + manga + chapter
+	const existing = await db
+		.select()
+		.from(readingHistory)
+		.where(
+			and(
+				eq(readingHistory.userId, userId),
+				eq(readingHistory.mangaId, mangaId),
+				eq(readingHistory.chapterId, chapterId)
+			)
+		)
+		.limit(1);
 
-	return result[0] as ReadingHistory;
+	if (existing.length > 0) {
+		// Update the existing entry's timestamp
+		const result = await db
+			.update(readingHistory)
+			.set({ readAt: new Date() })
+			.where(eq(readingHistory.id, existing[0].id))
+			.returning();
+		return result[0] as ReadingHistory;
+	} else {
+		// Create new entry
+		const result = await db
+			.insert(readingHistory)
+			.values({ userId, mangaId, chapterId })
+			.returning();
+		return result[0] as ReadingHistory;
+	}
 }
 
 /**
- * Get reading history
+ * Reading history entry with manga and chapter details
  */
-export async function getReadingHistory(userId: string, limit: number = 20): Promise<ReadingHistory[]> {
+export interface ReadingHistoryWithDetails {
+	id: string;
+	mangaId: string;
+	chapterId: string;
+	readAt: Date;
+	manga: {
+		id: string;
+		title: string;
+		slug: string;
+		coverUrl: string | null;
+	};
+	chapter: {
+		id: string;
+		chapterNumber: number;
+		title: string | null;
+	};
+}
+
+/**
+ * Get reading history with manga and chapter details
+ */
+export async function getReadingHistory(userId: string, limit: number = 20): Promise<ReadingHistoryWithDetails[]> {
 	const result = await db
-		.select()
+		.select({
+			id: readingHistory.id,
+			mangaId: readingHistory.mangaId,
+			chapterId: readingHistory.chapterId,
+			readAt: readingHistory.readAt,
+			manga: {
+				id: manga.id,
+				title: manga.title,
+				slug: manga.slug,
+				coverUrl: manga.coverUrl
+			},
+			chapter: {
+				id: chapters.id,
+				chapterNumber: chapters.chapterNumber,
+				title: chapters.title
+			}
+		})
 		.from(readingHistory)
+		.innerJoin(manga, eq(readingHistory.mangaId, manga.id))
+		.innerJoin(chapters, eq(readingHistory.chapterId, chapters.id))
 		.where(eq(readingHistory.userId, userId))
 		.orderBy(desc(readingHistory.readAt))
 		.limit(limit);
 
-	return result as ReadingHistory[];
+	return result as ReadingHistoryWithDetails[];
 }
 
 /**
@@ -217,4 +279,13 @@ export async function getReadingHistory(userId: string, limit: number = 20): Pro
  */
 export async function clearReadingHistory(userId: string): Promise<void> {
 	await db.delete(readingHistory).where(eq(readingHistory.userId, userId));
+}
+
+/**
+ * Remove single history entry
+ */
+export async function removeFromHistory(userId: string, historyId: string): Promise<void> {
+	await db
+		.delete(readingHistory)
+		.where(and(eq(readingHistory.userId, userId), eq(readingHistory.id, historyId)));
 }

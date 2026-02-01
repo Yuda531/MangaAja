@@ -1,8 +1,9 @@
 import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import { getChapterWithPages, getAdjacentChapters, getMangaBySlug } from '$lib/server/db/queries/manga';
+import { addToHistory, updateReadingProgress, getReadingProgress } from '$lib/server/db/queries/user';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
 	const chapterNumber = parseInt(params.chapter);
 
 	if (isNaN(chapterNumber)) {
@@ -24,6 +25,16 @@ export const load: PageServerLoad = async ({ params }) => {
 	// Get adjacent chapters for navigation
 	const { prev, next } = await getAdjacentChapters(manga.id, chapterNumber);
 
+	// If user is logged in, track reading history and get progress
+	let currentProgress = null;
+	if (locals.user) {
+		// Add to reading history (or update if exists)
+		await addToHistory(locals.user.id, manga.id, chapter.id);
+		
+		// Get current reading progress for this manga
+		currentProgress = await getReadingProgress(locals.user.id, manga.id);
+	}
+
 	return {
 		chapter,
 		manga: {
@@ -37,6 +48,8 @@ export const load: PageServerLoad = async ({ params }) => {
 			updatedAt: manga.updatedAt
 		},
 		prevChapter: prev,
-		nextChapter: next
+		nextChapter: next,
+		currentProgress,
+		isLoggedIn: !!locals.user
 	};
 };

@@ -15,4 +15,5 @@
 	manga={data.manga}
 	prevChapter={data.prevChapter}
 	nextChapter={data.nextChapter}
+	isLoggedIn={data.isLoggedIn}
 />

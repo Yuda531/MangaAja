@@ -1,11 +1,15 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import { invalidateAll } from '$app/navigation';
+	import { toast } from '$lib/stores/toast';
 
 	let { data }: { data: PageData } = $props();
 
 	let showFullDescription = $state(false);
 	let sortAsc = $state(false);
 	let imageLoaded = $state(false);
+	let isBookmarked = $state(data.bookmarked);
+	let bookmarkLoading = $state(false);
 
 	let sortedChapters = $derived(
 		sortAsc 
@@ -31,7 +35,50 @@
 	}
 
 	async function toggleBookmark() {
-		// TODO: Implement bookmark toggle with API
+		if (bookmarkLoading) return;
+		
+		bookmarkLoading = true;
+		
+		try {
+			if (isBookmarked) {
+				// Remove bookmark
+				const response = await fetch(`/api/bookmarks?mangaId=${data.manga.id}`, {
+					method: 'DELETE'
+				});
+				
+				if (response.ok) {
+					isBookmarked = false;
+					toast.success('Removed from library');
+				} else {
+					const error = await response.json();
+					toast.error(error.message || 'Failed to remove bookmark');
+				}
+			} else {
+				// Add bookmark
+				const response = await fetch('/api/bookmarks', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ mangaId: data.manga.id })
+				});
+				
+				if (response.ok) {
+					isBookmarked = true;
+					toast.success('Added to library');
+				} else {
+					const error = await response.json();
+					if (response.status === 401) {
+						toast.error('Please login to bookmark');
+					} else {
+						toast.error(error.message || 'Failed to add bookmark');
+					}
+				}
+			}
+		} catch (err) {
+			toast.error('An error occurred');
+			console.error('Bookmark error:', err);
+		} finally {
+			bookmarkLoading = false;
+		}
 	}
 </script>
 
@@ -109,10 +156,21 @@
 								Start Reading
 							{/if}
 						</a>
-						<button class="bookmark-btn" class:bookmarked={data.bookmarked} onclick={toggleBookmark}>
-							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={data.bookmarked ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-							</svg>
+						<button 
+							class="bookmark-btn" 
+							class:bookmarked={isBookmarked} 
+							class:loading={bookmarkLoading}
+							onclick={toggleBookmark}
+							disabled={bookmarkLoading}
+							aria-label={isBookmarked ? 'Remove from library' : 'Add to library'}
+						>
+							{#if bookmarkLoading}
+								<span class="bookmark-spinner"></span>
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+								</svg>
+							{/if}
 						</button>
 					</div>
 				</div>
@@ -363,12 +421,36 @@
 		transition: all var(--transition-fast);
 	}
 
-	.bookmark-btn:hover {
+	.bookmark-btn:hover:not(:disabled) {
 		background-color: var(--color-bg-tertiary);
+	}
+
+	.bookmark-btn:disabled {
+		cursor: not-allowed;
+		opacity: 0.7;
 	}
 
 	.bookmark-btn.bookmarked {
 		color: var(--color-primary);
+	}
+
+	.bookmark-btn.loading {
+		pointer-events: none;
+	}
+
+	.bookmark-spinner {
+		width: 20px;
+		height: 20px;
+		border: 2px solid var(--color-border);
+		border-top-color: var(--color-primary);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.chapters-section {
